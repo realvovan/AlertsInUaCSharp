@@ -6,8 +6,7 @@ namespace AlertsInUaCSharp;
 /// <summary>
 /// Class for working with the alerts.in.ua API
 /// </summary>
-public class AlertsClient {
-	private const string BASE_URL = "https://api.alerts.in.ua/v1/";
+public partial class AlertsClient {
 	private readonly HttpClient httpClient = new();
 	public static string[] OblastOrder { get; } = [
 		"Автономна Республіка Крим",
@@ -46,7 +45,7 @@ public class AlertsClient {
 	/// <exception cref="JsonException"></exception>
 	public async Task<Alert[]> GetActiveAlertsAsync() {
 		return this.createAlertsFromDictionary(
-			JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(await this.request("alerts/active.json?token="))
+			JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(await this.request(ApiEndpoints.GET_ACTIVE_ALERTS))
 		);
 	}
 	/// <summary>
@@ -54,7 +53,7 @@ public class AlertsClient {
 	/// </summary>
 	/// <exception cref="HttpRequestException"></exception>
 	public async Task<AlertStatuses> GetAlertStatusesAsync() {
-		var result = await this.request("iot/active_air_raid_alerts_by_oblast.json?token=");
+		var result = await this.request(ApiEndpoints.GET_STATUSES);
 		var statuses = new AlertStatus[result.Length - 2]; // -2 for the two " symbols in a string
 		for (int i = 1; i < result.Length - 1; i++) {
 			statuses[i-1] = new AlertStatus(OblastOrder[i-1],result[i]);
@@ -67,7 +66,7 @@ public class AlertsClient {
 	/// <param name="uid">UID of the oblast</param>
 	/// <exception cref="HttpRequestException"></exception>
 	public async Task<AlertStatus> GetAlertStatusInOblastAsync(int uid) {
-		var result = await this.request($"iot/active_air_raid_alerts/{uid}.json?token=");
+		var result = await this.request(string.Format(ApiEndpoints.GET_STATUS_IN_OBLAST,uid));
 		return new AlertStatus(UIDResolver.GetOblastFromUID(uid) ?? $"Location with UID {uid}",result[1]);
 	}
 	/// <summary>
@@ -76,7 +75,7 @@ public class AlertsClient {
 	/// <param name="oblast">Name of the oblast</param>
 	/// <exception cref="HttpRequestException"></exception>
 	public async Task<AlertStatus> GetAlertStatusInOblastAsync(string oblast) {
-		var result = await this.request($"iot/active_air_raid_alerts/{UIDResolver.GetUIDFromOblast(oblast)}.json?token=");
+		var result = await this.request(string.Format(ApiEndpoints.GET_STATUS_IN_OBLAST,UIDResolver.GetUIDFromOblast(oblast)));
 		return new AlertStatus(oblast,result[1]);
 	}
 	/// <summary>
@@ -87,7 +86,7 @@ public class AlertsClient {
 	/// <exception cref="JsonException"></exception>
 	public async Task<Alert[]> GetAlertHistoryAsync(int uid) {
 		return this.createAlertsFromDictionary(
-			JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(await this.request($"regions/{uid}/alerts/month_ago.json?token="))
+			JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(await this.request(string.Format(ApiEndpoints.GET_HISTORY,uid)))
 		);
 	}
 	/// <summary>
@@ -99,7 +98,7 @@ public class AlertsClient {
 	public async Task<Alert[]> GetAlertHistoryAsync(string oblast) => await this.GetAlertHistoryAsync(UIDResolver.GetUIDFromOblast(oblast));
 
 	private async Task<string> request(string endPoint) {
-		var response = await this.httpClient.GetAsync(BASE_URL+endPoint+this.Token);
+		var response = await this.httpClient.GetAsync(ApiEndpoints.BASE_URL+endPoint+this.Token);
 		return (int)response.StatusCode switch {
 			200 => await response.Content.ReadAsStringAsync(),
 			401 => throw new HttpRequestException("Invalid API token"),
